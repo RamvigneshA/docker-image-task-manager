@@ -14,10 +14,9 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/tasksdb'
 });
 
-// Multer memory storage for file uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// POST /tasks → Create a task with optional image
+// POST /tasks → create task with optional image
 app.post('/tasks', upload.single('image'), async (req, res) => {
   try {
     const { title, description } = req.body;
@@ -31,7 +30,7 @@ app.post('/tasks', upload.single('image'), async (req, res) => {
         .jpeg({ quality: 70 })
         .toBuffer();
 
-      // Thumbnail (200px width, smaller quality)
+      // Thumbnail
       thumbBuffer = await sharp(req.file.buffer)
         .resize({ width: 200 })
         .jpeg({ quality: 50 })
@@ -50,7 +49,7 @@ app.post('/tasks', upload.single('image'), async (req, res) => {
   }
 });
 
-// GET /tasks → Get all tasks (without image data)
+// GET /tasks → list tasks (without images in JSON)
 app.get('/tasks', async (req, res) => {
   try {
     const result = await pool.query('SELECT id, title, description, created_at FROM tasks ORDER BY created_at DESC');
@@ -61,7 +60,7 @@ app.get('/tasks', async (req, res) => {
   }
 });
 
-// GET /tasks/:id/image → Get full-size image
+// GET /tasks/:id/image → full-size image
 app.get('/tasks/:id/image', async (req, res) => {
   try {
     const result = await pool.query('SELECT image_data FROM tasks WHERE id=$1', [req.params.id]);
@@ -78,13 +77,17 @@ app.get('/tasks/:id/image', async (req, res) => {
   }
 });
 
-// GET /tasks/:id/thumbnail → Get thumbnail image
+// GET /tasks/:id/thumbnail → thumbnail
 app.get('/tasks/:id/thumbnail', async (req, res) => {
   try {
     const result = await pool.query('SELECT thumbnail_data FROM tasks WHERE id=$1', [req.params.id]);
 
     if (!result.rows.length || !result.rows[0].thumbnail_data) {
-      return res.status(404).send('Thumbnail not found');
+      // fallback: use full image if thumbnail not available
+      const full = await pool.query('SELECT image_data FROM tasks WHERE id=$1', [req.params.id]);
+      if (!full.rows.length || !full.rows[0].image_data) return res.status(404).send('Image not found');
+      res.set('Content-Type', 'image/jpeg');
+      return res.send(full.rows[0].image_data);
     }
 
     res.set('Content-Type', 'image/jpeg');
@@ -95,6 +98,6 @@ app.get('/tasks/:id/thumbnail', async (req, res) => {
   }
 });
 
-// Start the server
-const PORT = process.env.PORT || 5000;
+// Start server
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));

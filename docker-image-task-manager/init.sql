@@ -3,5 +3,6 @@ CREATE TABLE IF NOT EXISTS tasks (
     title TEXT NOT NULL,
     description TEXT,
     image_data BYTEA,
+    thumbnail_data BYTEA,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
